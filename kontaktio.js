@@ -271,7 +271,7 @@
     if (theme?.theme) {
       const t = theme.theme;
       document.documentElement.style.setProperty("--k-primary", t.primary || "#111");
-      document.documentElement.style.setProperty("--k-accent", t.accent || "#3b82f6");
+      document.documentElement.style.setProperty("--k-accent", t.accent || "#3b82f7");
       document.documentElement.style.setProperty("--k-radius", (t.radius || 14) + "px");
     }
   });
