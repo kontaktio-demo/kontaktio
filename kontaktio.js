@@ -37,6 +37,7 @@
     amico: {
       name: "AMICO",
       subtitle: "Pracownia Kamieniarska",
+      logoType: "text",
       logo: "AMICO",
       bg: "#f7f6f2",
       primary: "#111111",
@@ -46,16 +47,6 @@
         "Z jakich materiałów?",
         "Jak się z Wami skontaktować?"
       ]
-    },
-    premium: {
-      name: "Kontaktio Premium",
-      subtitle: "Exclusive AI Assistant",
-      logoType: "emoji",
-      logo: "✦",
-      bg: "#020617",
-      primary: "#7c3aed",
-      accent: "#a78bfa",
-      quick: []
     }
   };
 
@@ -105,7 +96,6 @@
     padding:14px;background:var(--k-primary);
     color:#fff;cursor:move;user-select:none;
   }
-  #k-header img {height:28px;}
   #k-controls {margin-left:auto;display:flex;gap:10px;}
   #k-controls button {
     background:none;border:none;color:#fff;
@@ -137,9 +127,7 @@
 
   widget.innerHTML = `
     <div id="k-header">
-      ${L.logoType === "image"
-        ? `<img src="${L.logo}" onerror="this.replaceWith(document.createTextNode('${L.logoType === 'emoji' ? L.logo : '◼'}'))"/>`
-        : `<div>${L.logo}</div>`}
+      <div>${L.logo}</div>
       <div>
         <strong>${L.name}</strong><br>
         <small>${L.subtitle}</small>
@@ -154,8 +142,8 @@
       <div class="k-msg k-bot">W czym mogę pomóc?</div>
     </div>
     <div id="k-input">
-      <input placeholder="Napisz wiadomość…" />
-      <button>Wyślij</button>
+      <input id="k-text" placeholder="Napisz wiadomość…" />
+      <button id="k-send">Wyślij</button>
     </div>
   `;
 
@@ -171,8 +159,10 @@
 
   const header = widget.querySelector("#k-header");
   const messages = widget.querySelector("#k-messages");
-  const input = widget.querySelector("input");
-  const sendBtn = widget.querySelector("button");
+  const input = widget.querySelector("#k-text");
+  const sendBtn = widget.querySelector("#k-send");
+  const themeBtn = widget.querySelector("#k-theme");
+  const closeBtn = widget.querySelector("#k-close");
   const quick = widget.querySelector("#k-quick");
 
   L.quick.forEach(q => {
@@ -183,9 +173,6 @@
     quick.appendChild(b);
   });
 
-  /* =========================
-     DRAG + SAVE POS
-     ========================= */
   header.addEventListener("mousedown", e => {
     isDragging = true;
     const r = widget.getBoundingClientRect();
@@ -210,9 +197,6 @@
     }));
   });
 
-  /* =========================
-     CHAT
-     ========================= */
   function add(text, cls) {
     const div = document.createElement("div");
     div.className = "k-msg " + cls;
@@ -228,8 +212,9 @@
 
     add(text, "k-user");
     input.value = "";
+
     const typing = document.createElement("div");
-    typing.className = "k-msg k-bot k-typing";
+    typing.className = "k-msg k hookups-bot k-typing";
     typing.textContent = "Asystent pisze…";
     messages.appendChild(typing);
 
@@ -256,12 +241,13 @@
     widget.classList.toggle("open", isOpen);
   };
 
-  widget.querySelector("#k-close").onclick = () => {
+  closeBtn.onclick = () => {
     widget.classList.remove("open");
     isOpen = false;
   };
 
-  widget.querySelector("#k-theme").onclick = e => {
+  themeBtn.onclick = e => {
+    e.preventDefault();
     e.stopPropagation();
     darkMode = !darkMode;
     widget.classList.toggle("k-dark", darkMode);
