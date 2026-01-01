@@ -12,6 +12,31 @@
   let themeApplied = false;
   let darkMode = localStorage.getItem("kontaktio-dark") === "1";
 
+  /* ================= QUICK ACTIONS PER CLIENT ================= */
+  const QUICK_ACTIONS = {
+    demo: [
+      "Co potrafi ten asystent?",
+      "Jak wygląda wdrożenie?",
+      "Dla jakich firm to działa?"
+    ],
+    amico: [
+      "Jakie wykonujecie blaty?",
+      "Czy robicie schody z granitu?",
+      "Jak skontaktować się w sprawie wyceny?"
+    ],
+    premium: [
+      "Jak wygląda obsługa premium?",
+      "Czy asystent działa 24/7?",
+      "Jak wdrożyć wersję PRO?"
+    ]
+  };
+
+  const START_MESSAGE = {
+    demo: "To jest wersja demonstracyjna asystenta Kontaktio.",
+    amico: "Jestem asystentem Pracowni Kamieniarskiej AMICO.",
+    premium: "Witaj w wersji premium asystenta Kontaktio."
+  };
+
   /* ================= CSS ================= */
   const style = document.createElement("style");
   style.textContent = `
@@ -45,7 +70,7 @@
 
   #k-widget {
     position:fixed;bottom:90px;right:20px;
-    width:360px;height:520px;
+    width:360px;height:540px;
     background:var(--k-bg);
     border-radius:var(--k-radius);
     display:flex;flex-direction:column;
@@ -80,6 +105,24 @@
     font-size:16px;
     cursor:pointer;
     margin-left:8px;
+  }
+
+  #k-actions{
+    display:flex;
+    gap:6px;
+    padding:8px;
+    flex-wrap:wrap;
+    background:rgba(0,0,0,.03);
+  }
+
+  .k-action{
+    font-size:12px;
+    padding:6px 10px;
+    border-radius:999px;
+    background:var(--k-accent);
+    color:#fff;
+    cursor:pointer;
+    border:none;
   }
 
   #k-messages{
@@ -165,8 +208,10 @@
       </div>
     </div>
 
+    <div id="k-actions"></div>
+
     <div id="k-messages">
-      <div class="k-msg k-bot">Dzień dobry 👋 W czym mogę pomóc?</div>
+      <div class="k-msg k-bot">${START_MESSAGE[CLIENT_ID] || "W czym mogę pomóc?"}</div>
     </div>
 
     <div id="k-input">
@@ -184,8 +229,21 @@
   const closeBtn = widget.querySelector("#k-close");
   const themeBtn = widget.querySelector("#k-theme");
   const header = widget.querySelector("#k-header");
+  const actions = widget.querySelector("#k-actions");
 
   if (darkMode) document.body.classList.add("k-dark");
+
+  /* ================= QUICK ACTIONS RENDER ================= */
+  (QUICK_ACTIONS[CLIENT_ID] || []).forEach(text => {
+    const b = document.createElement("button");
+    b.className = "k-action";
+    b.textContent = text;
+    b.onclick = () => {
+      input.value = text;
+      send();
+    };
+    actions.appendChild(b);
+  });
 
   function add(text, cls) {
     const div = document.createElement("div");
