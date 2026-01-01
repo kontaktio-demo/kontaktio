@@ -16,9 +16,6 @@
   const savedPos = JSON.parse(localStorage.getItem("kontaktio-pos") || "null");
   let darkMode = localStorage.getItem("kontaktio-dark") === "1";
 
-  /* =========================
-     LAYOUTS
-     ========================= */
   const LAYOUTS = {
     demo: {
       name: "Kontaktio Demo",
@@ -52,9 +49,6 @@
 
   const L = LAYOUTS[CLIENT_ID] || LAYOUTS.demo;
 
-  /* =========================
-     CSS
-     ========================= */
   const style = document.createElement("style");
   style.textContent = `
   :root {
@@ -114,9 +108,6 @@
   `;
   document.head.appendChild(style);
 
-  /* =========================
-     HTML
-     ========================= */
   const launcher = document.createElement("div");
   launcher.id = "k-launcher";
   launcher.textContent = "💬";
@@ -133,8 +124,8 @@
         <small>${L.subtitle}</small>
       </div>
       <div id="k-controls">
-        <button id="k-theme">🌓</button>
-        <button id="k-close">✕</button>
+        <button id="k-theme" type="button">🌓</button>
+        <button id="k-close" type="button">✕</button>
       </div>
     </div>
     <div id="k-quick"></div>
@@ -143,7 +134,7 @@
     </div>
     <div id="k-input">
       <input id="k-text" placeholder="Napisz wiadomość…" />
-      <button id="k-send">Wyślij</button>
+      <button id="k-send" type="button">Wyślij</button>
     </div>
   `;
 
@@ -169,32 +160,12 @@
     const b = document.createElement("button");
     b.className = "k-q";
     b.textContent = q;
-    b.onclick = () => { input.value = q; send(); };
+    b.onclick = e => {
+      e.stopPropagation();
+      input.value = q;
+      send();
+    };
     quick.appendChild(b);
-  });
-
-  header.addEventListener("mousedown", e => {
-    isDragging = true;
-    const r = widget.getBoundingClientRect();
-    dragOffsetX = e.clientX - r.left;
-    dragOffsetY = e.clientY - r.top;
-  });
-
-  document.addEventListener("mousemove", e => {
-    if (!isDragging) return;
-    widget.style.left = Math.max(0, e.clientX - dragOffsetX) + "px";
-    widget.style.top = Math.max(0, e.clientY - dragOffsetY) + "px";
-    widget.style.right = "auto";
-    widget.style.bottom = "auto";
-  });
-
-  document.addEventListener("mouseup", () => {
-    if (!isDragging) return;
-    isDragging = false;
-    localStorage.setItem("kontaktio-pos", JSON.stringify({
-      x: widget.offsetLeft,
-      y: widget.offsetTop
-    }));
   });
 
   function add(text, cls) {
@@ -214,7 +185,7 @@
     input.value = "";
 
     const typing = document.createElement("div");
-    typing.className = "k-msg k hookups-bot k-typing";
+    typing.className = "k-msg k-bot k-typing";
     typing.textContent = "Asystent pisze…";
     messages.appendChild(typing);
 
@@ -236,24 +207,29 @@
     }
   }
 
-  launcher.onclick = () => {
+  launcher.onclick = e => {
+    e.stopPropagation();
     isOpen = !isOpen;
     widget.classList.toggle("open", isOpen);
   };
 
-  closeBtn.onclick = () => {
+  closeBtn.onclick = e => {
+    e.stopPropagation();
     widget.classList.remove("open");
     isOpen = false;
   };
 
   themeBtn.onclick = e => {
-    e.preventDefault();
     e.stopPropagation();
     darkMode = !darkMode;
     widget.classList.toggle("k-dark", darkMode);
     localStorage.setItem("kontaktio-dark", darkMode ? "1" : "0");
   };
 
-  sendBtn.onclick = send;
+  sendBtn.onclick = e => {
+    e.stopPropagation();
+    send();
+  };
+
   input.addEventListener("keydown", e => e.key === "Enter" && send());
 })();
