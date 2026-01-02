@@ -14,6 +14,7 @@
     script?.getAttribute("data-backend") ||
     "https://chatbot-backend-x2cy.onrender.com/chat";
 
+  // opcjonalny config JSON (np. do dodatkowego statusu) – backend i tak broni się sam
   const CONFIG_URL = script?.getAttribute("data-config") || null;
 
   const AUTO_OPEN = script?.getAttribute("data-auto-open") === "true";
@@ -130,7 +131,7 @@
   }
 
   function escapeHtml(str) {
-    return str
+    return String(str || "")
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
@@ -176,8 +177,7 @@
     }
 
     // linki
-    const urlRegex =
-      /\b(https?:\/\/[^\s<]+[^\s<\.)])/gi;
+    const urlRegex = /\b(https?:\/\/[^\s<]+[^\s<\.)])/gi;
     safe = safe.replace(
       urlRegex,
       '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
@@ -233,7 +233,6 @@
   function hasMessages() {
     const messages = document.getElementById("k-messages");
     if (!messages) return false;
-    // odfiltrowujemy typing itp.
     return messages.querySelector(".k-msg-row") !== null;
   }
 
@@ -261,10 +260,10 @@
     ]);
   }
 
-  /* ---------------- CLIENT STATUS ---------------- */
+  /* ---------------- CLIENT STATUS (opcjonalny frontend guard) ---------------- */
 
   async function checkClientStatus() {
-    if (!CONFIG_URL) return; // brak configu – frontend nie blokuje, polega na backendzie
+    if (!CONFIG_URL) return; // główne sprawdzenie jest po stronie backendu
 
     try {
       const res = await fetch(CONFIG_URL, { cache: "no-store" });
@@ -682,7 +681,7 @@
 
     row.appendChild(bubble);
 
-    // opcjonalne quick replies (na przyszłość – można podać w meta.quickReplies)
+    // opcjonalne quick replies (meta.quickReplies)
     if (meta.quickReplies && Array.isArray(meta.quickReplies)) {
       const qrWrap = document.createElement("div");
       qrWrap.className = "k-quick-replies";
@@ -946,7 +945,6 @@
         ? "Cześć! Jestem branżowym asystentem Kontaktio. Zobacz, jak ten widget może pracować dla Twojej firmy."
         : "Hej! Jestem demo asystentem Kontaktio. Mogę wytłumaczyć, jak to rozwiązanie sprawdzi się na Twojej stronie.";
 
-    // mini-onboarding w 2 krokach
     appendMessage(baseText, "agent");
     pushToHistory(baseText, "agent");
 
@@ -1098,7 +1096,6 @@
     const widget = document.getElementById("k-widget");
 
     if (!widget && !clientActive) {
-      // klient nieaktywny – nic nie robimy
       return;
     }
 
@@ -1129,7 +1126,6 @@
 
   createLauncher();
 
-  // auto-open po X sekundach lub na podstawie stanu
   const initialOpen = loadOpenState();
   if (initialOpen) {
     setTimeout(() => {
@@ -1153,5 +1149,5 @@
       }, 200);
     }
   } catch {}
-
 })();
+
