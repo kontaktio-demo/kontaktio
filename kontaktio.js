@@ -1,16 +1,19 @@
 (function () {
-  // Pozwalamy na wiele instancji na jednej stronie:
-  // - jeden <script data-kontaktio> = jeden widget
+  // ============================================================
+  // Kontaktio Widget – Production build
+  // - multi-instance safe
+  // - SPA safe
+  // - custom CSS support
+  // - backward compatible with existing backend & panel
+  // ============================================================
+
   const scripts = Array.from(document.querySelectorAll("script[data-kontaktio]"));
   if (!scripts.length) return;
 
-  // Zapobiega podwójnemu initowi przy dynamicznym przeładowaniu
-  if (window.__KontaktioBooted) return;
-  window.__KontaktioBooted = true;
-
-  // ================
+  // ============================================================
   // Helpers
-  // ================
+  // ============================================================
+
   const safeJsonParse = (s, fallback) => {
     try {
       return JSON.parse(s);
@@ -28,9 +31,15 @@
         node.addEventListener(k.slice(2), v);
       else if (v !== null && v !== undefined) node.setAttribute(k, String(v));
     });
-    children.forEach((c) => node.appendChild(typeof c === "string" ? document.createTextNode(c) : c));
+    children.forEach((c) =>
+      node.appendChild(typeof c === "string" ? document.createTextNode(c) : c)
+    );
     return node;
   };
+
+  // ============================================================
+  // Global styles (inserted once)
+  // ============================================================
 
   const ensureStyles = () => {
     if (document.getElementById("kontaktio-styles")) return;
@@ -38,6 +47,11 @@
     const style = document.createElement("style");
     style.id = "kontaktio-styles";
     style.innerHTML = `
+      .kontaktio-root {
+        all: initial;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
       .kontaktio-launcher {
         position: fixed;
         display: flex;
@@ -167,60 +181,19 @@
     document.head.appendChild(style);
   };
 
-  const normalizeClient = (cfg) => {
-    const company = cfg.company || {};
-    const theme = cfg.theme || {};
-
-    return {
-      id: cfg.id,
-      status: cfg.status || "active",
-      statusMessage: cfg.statusMessage || cfg.status_message || "",
-      company: {
-        name: company.name || "Asystent",
-        email: company.email || "",
-        phone: company.phone || "",
-        address: company.address || "",
-        hours: company.hours || ""
-      },
-      theme: {
-        headerBg: theme.headerBg || theme.buttonBg || "#111827",
-        headerText: theme.headerText || "#ffffff",
-        widgetBg: theme.widgetBg || "#ffffff",
-        inputBg: theme.inputBg || "#ffffff",
-        inputText: theme.inputText || "#111827",
-        buttonBg: theme.buttonBg || "#2563eb",
-        buttonText: theme.buttonText || "#ffffff",
-        botBubbleBg: theme.botBubbleBg || "#f3f4f6",
-        botBubbleText: theme.botBubbleText || "#111827",
-        userBubbleBg: theme.userBubbleBg || theme.buttonBg || "#2563eb",
-        userBubbleText: theme.userBubbleText || "#ffffff",
-        radius: Number(theme.radius ?? 18),
-        position: theme.position === "left" ? "left" : "right"
-      },
-      launcher_icon: cfg.launcher_icon || "💬",
-      welcome_message: cfg.welcome_message || "",
-      welcome_hint: cfg.welcome_hint || "",
-      quick_replies: Array.isArray(cfg.quick_replies) ? cfg.quick_replies : [],
-      auto_open_enabled: !!cfg.auto_open_enabled,
-      auto_open_delay: Number(cfg.auto_open_delay ?? 15000)
-    };
-  };
-
-  const buildKeys = (clientId) => ({
-    history: `kontaktio-history-${clientId}`,
-    session: `kontaktio-session-${clientId}`,
-    open: `kontaktio-open-${clientId}`,
-    autoOpened: `kontaktio-autoopened-${clientId}`
-  });
-
-  // ================
-  // Instance init
-  // ================
   ensureStyles();
 
+  // ============================================================
+  // Init per script (NO global boot flag)
+  // ============================================================
+
   scripts.forEach((script, idx) => {
+    if (script.__kontaktioMounted) return;
+    script.__kontaktioMounted = true;
+
     const CLIENT_ID = script.getAttribute("data-client") || "demo";
     const BACKEND = script.getAttribute("data-backend") || "";
+    const CUSTOM_CSS = script.getAttribute("data-css");
     const baseUrl = BACKEND.replace(/\/+$/, "");
 
     if (!baseUrl) {
@@ -228,317 +201,149 @@
       return;
     }
 
-    const keys = buildKeys(CLIENT_ID);
+    // Optional custom CSS (official hook)
+    if (CUSTOM_CSS) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = CUSTOM_CSS;
+      document.head.appendChild(link);
+    }
+
+    // ============================================================
+    // Storage keys
+    // ============================================================
+
+    const keys = {
+      history: `kontaktio-history-${CLIENT_ID}`,
+      session: `kontaktio-session-${CLIENT_ID}`,
+      open: `kontaktio-open-${CLIENT_ID}`,
+      autoOpened: `kontaktio-autoopened-${CLIENT_ID}`
+    };
 
     let cfg = null;
     let isOpen = false;
     let isSending = false;
 
     const loadSessionId = () => {
-      try {
-        return localStorage.getItem(keys.session);
-      } catch {
-        return null;
-      }
+      try { return localStorage.getItem(keys.session); } catch { return null; }
     };
-
     const saveSessionId = (sid) => {
-      try {
-        localStorage.setItem(keys.session, sid);
-      } catch {}
+      try { localStorage.setItem(keys.session, sid); } catch {}
     };
 
     const loadOpenState = () => {
-      try {
-        return localStorage.getItem(keys.open) === "1";
-      } catch {
-        return false;
-      }
+      try { return localStorage.getItem(keys.open) === "1"; } catch { return false; }
     };
-
     const saveOpenState = (open) => {
-      try {
-        localStorage.setItem(keys.open, open ? "1" : "0");
-      } catch {}
+      try { localStorage.setItem(keys.open, open ? "1" : "0"); } catch {}
     };
 
     const loadHistory = () => {
-      try {
-        return safeJsonParse(localStorage.getItem(keys.history) || "[]", []);
-      } catch {
-        return [];
-      }
+      try { return safeJsonParse(localStorage.getItem(keys.history) || "[]", []); } catch { return []; }
     };
-
     const saveHistory = (arr) => {
-      try {
-        localStorage.setItem(keys.history, JSON.stringify(arr || []));
-      } catch {}
+      try { localStorage.setItem(keys.history, JSON.stringify(arr || [])); } catch {}
     };
 
     const markAutoOpened = () => {
-      try {
-        localStorage.setItem(keys.autoOpened, "1");
-      } catch {}
+      try { localStorage.setItem(keys.autoOpened, "1"); } catch {}
+    };
+    const wasAutoOpened = () => {
+      try { return localStorage.getItem(keys.autoOpened) === "1"; } catch { return false; }
     };
 
-    const wasAutoOpened = () => {
-      try {
-        return localStorage.getItem(keys.autoOpened) === "1";
-      } catch {
-        return false;
-      }
-    };
+    // ============================================================
+    // Fetch config
+    // ============================================================
 
     const fetchConfig = async () => {
-      const res = await fetch(`${baseUrl}/config/${encodeURIComponent(CLIENT_ID)}`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" }
-      });
-
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(`Config error ${res.status}: ${txt}`);
-      }
-
-      const data = await res.json();
-      return normalizeClient(data);
+      const res = await fetch(`${baseUrl}/config/${encodeURIComponent(CLIENT_ID)}`);
+      if (!res.ok) throw new Error("Config load failed");
+      return res.json();
     };
 
-    const rootId = `kontaktio-root-${CLIENT_ID}-${idx}`;
-    const launcherId = `kontaktio-launcher-${CLIENT_ID}-${idx}`;
-    const widgetId = `kontaktio-widget-${CLIENT_ID}-${idx}`;
-    const messagesId = `kontaktio-messages-${CLIENT_ID}-${idx}`;
-    const inputId = `kontaktio-input-${CLIENT_ID}-${idx}`;
-    const quickId = `kontaktio-quick-${CLIENT_ID}-${idx}`;
-    const mutedId = `kontaktio-muted-${CLIENT_ID}-${idx}`;
-
-    const getPos = () => {
-      const offsetX = 20;
-      const offsetY = 20;
-      const pos = cfg?.theme?.position === "left" ? "left" : "right";
-      return { pos, offsetX, offsetY };
-    };
-
-    const scrollToBottom = () => {
-      const wrap = document.getElementById(messagesId);
-      if (!wrap) return;
-      wrap.scrollTop = wrap.scrollHeight;
-    };
-
-    const pushMessage = (role, text) => {
-      const wrap = document.getElementById(messagesId);
-      if (!wrap) return;
-
-      const row = el("div", { class: `kontaktio-row ${role}` }, [
-        el(
-          "div",
-          { class: "kontaktio-bubble" },
-          [String(text || "")]
-        )
-      ]);
-
-      const bubble = row.querySelector(".kontaktio-bubble");
-      const r = Math.max(10, Number(cfg.theme.radius || 18));
-      bubble.style.borderRadius = `${r}px`;
-      bubble.style.background = role === "user" ? cfg.theme.userBubbleBg : cfg.theme.botBubbleBg;
-      bubble.style.color = role === "user" ? cfg.theme.userBubbleText : cfg.theme.botBubbleText;
-
-      wrap.appendChild(row);
-      scrollToBottom();
-
-      const history = loadHistory();
-      history.push({ role, text: String(text || ""), ts: Date.now() });
-      saveHistory(history);
-    };
-
-    const setMuted = (text) => {
-      const m = document.getElementById(mutedId);
-      if (!m) return;
-      m.textContent = text || "";
-      m.style.display = text ? "block" : "none";
-    };
-
-    const renderQuickReplies = () => {
-      const wrap = document.getElementById(quickId);
-      if (!wrap) return;
-
-      wrap.innerHTML = "";
-      const items = (cfg.quick_replies || []).filter(Boolean).slice(0, 8);
-
-      items.forEach((q) => {
-        const btn = el("button", {}, [String(q)]);
-        btn.addEventListener("click", () => {
-          const input = document.getElementById(inputId);
-          if (input) input.value = String(q);
-          sendMessage(String(q));
-        });
-        wrap.appendChild(btn);
-      });
-
-      wrap.style.display = items.length ? "flex" : "none";
-    };
-
-    const openWidget = () => {
-      isOpen = true;
-      saveOpenState(true);
-
-      const widget = document.getElementById(widgetId);
-      if (widget) widget.style.display = "flex";
-
-      scrollToBottom();
-      const input = document.getElementById(inputId);
-      if (input) input.focus();
-    };
-
-    const closeWidget = () => {
-      isOpen = false;
-      saveOpenState(false);
-
-      const widget = document.getElementById(widgetId);
-      if (widget) widget.style.display = "none";
-    };
-
-    const toggleWidget = () => {
-      if (isOpen) closeWidget();
-      else openWidget();
-    };
-
-    const sendMessage = async (text) => {
-      const msg = String(text || "").trim();
-      if (!msg) return;
-      if (isSending) return;
-
-      isSending = true;
-      setMuted("");
-
-      const input = document.getElementById(inputId);
-      if (input) input.value = "";
-
-      pushMessage("user", msg);
-
-      const payload = {
-        clientId: CLIENT_ID,
-        message: msg,
-        sessionId: loadSessionId()
-      };
-
-      try {
-        const res = await fetch(`${baseUrl}/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await res.json().catch(() => ({}));
-
-        if (!res.ok) {
-          const errMsg =
-            data?.statusMessage ||
-            data?.error ||
-            "Wystąpił błąd. Spróbuj ponownie za chwilę.";
-          pushMessage("bot", errMsg);
-          return;
-        }
-
-        if (data.sessionId) saveSessionId(data.sessionId);
-
-        const reply = data.reply || "—";
-        pushMessage("bot", reply);
-      } catch (e) {
-        pushMessage("bot", "Brak połączenia. Spróbuj ponownie za chwilę.");
-      } finally {
-        isSending = false;
-      }
-    };
+    // ============================================================
+    // Mount widget
+    // ============================================================
 
     const mount = async () => {
-      // Root
-      const root = el("div", { id: rootId });
+      const root = el("div", { class: "kontaktio-root" });
       document.body.appendChild(root);
 
-      // Load config
       try {
         cfg = await fetchConfig();
-      } catch (e) {
-        console.error("[Kontaktio] Config load failed:", e);
-        cfg = normalizeClient({
-          id: CLIENT_ID,
+      } catch {
+        cfg = {
           status: "unactive",
           statusMessage: "Asystent jest obecnie niedostępny.",
           company: { name: "Asystent" },
           theme: {}
-        });
+        };
       }
 
-      // Positioning
-      const { pos, offsetX, offsetY } = getPos();
+      const theme = cfg.theme || {};
+      const pos = theme.position === "left" ? "left" : "right";
+      const offsetX = cfg.offset_x ?? 20;
+      const offsetY = cfg.offset_y ?? 20;
 
       // Launcher
-      const launcher = el("div", { id: launcherId, class: "kontaktio-launcher" }, [
+      const launcher = el("div", { class: "kontaktio-launcher" }, [
         el("div", {}, [cfg.launcher_icon || "💬"])
       ]);
-
       launcher.style.width = "56px";
       launcher.style.height = "56px";
       launcher.style.borderRadius = "999px";
-      launcher.style.background = cfg.theme.buttonBg;
-      launcher.style.color = cfg.theme.buttonText;
+      launcher.style.background = theme.buttonBg || "#2563eb";
+      launcher.style.color = theme.buttonText || "#ffffff";
       launcher.style.bottom = `${offsetY}px`;
       launcher.style[pos] = `${offsetX}px`;
 
-      launcher.addEventListener("click", toggleWidget);
-
       // Widget
-      const widget = el("div", { id: widgetId, class: "kontaktio-widget" }, []);
-
-      widget.style.background = cfg.theme.widgetBg;
-      widget.style.borderRadius = `${Math.max(12, Number(cfg.theme.radius || 18))}px`;
+      const widget = el("div", { class: "kontaktio-widget" });
+      widget.style.background = theme.widgetBg || "#ffffff";
+      widget.style.borderRadius = `${Math.max(12, Number(theme.radius || 18))}px`;
       widget.style.bottom = `${offsetY + 70}px`;
       widget.style[pos] = `${offsetX}px`;
 
       const closeBtn = el("button", { class: "kontaktio-close", type: "button" }, ["×"]);
-      closeBtn.style.color = cfg.theme.headerText;
-      closeBtn.addEventListener("click", closeWidget);
+      closeBtn.style.color = theme.headerText || "#ffffff";
+      closeBtn.addEventListener("click", () => {
+        isOpen = false;
+        saveOpenState(false);
+        widget.style.display = "none";
+      });
 
       const headerLeft = el("div", {}, [
-        el("div", {}, [cfg.company.name || "Asystent"]),
-        cfg.welcome_hint ? el("div", { class: "kontaktio-header-sub" }, [cfg.welcome_hint]) : el("div")
+        el("div", {}, [cfg.company?.name || "Asystent"]),
+        cfg.welcome_hint
+          ? el("div", { class: "kontaktio-header-sub" }, [cfg.welcome_hint])
+          : el("div")
       ]);
 
       const header = el("div", { class: "kontaktio-header" }, [headerLeft, closeBtn]);
-      header.style.background = cfg.theme.headerBg;
-      header.style.color = cfg.theme.headerText;
+      header.style.background = theme.headerBg || "#111827";
+      header.style.color = theme.headerText || "#ffffff";
 
-      const muted = el("div", { id: mutedId, class: "kontaktio-muted" }, [""]);
+      const muted = el("div", { class: "kontaktio-muted" }, [""]);
       muted.style.display = "none";
 
-      const messages = el("div", { id: messagesId, class: "kontaktio-messages" }, []);
-      const quick = el("div", { id: quickId, class: "kontaktio-quick" }, []);
+      const messages = el("div", { class: "kontaktio-messages" }, []);
+      const quick = el("div", { class: "kontaktio-quick" }, []);
+
       const input = el("input", {
-        id: inputId,
         class: "kontaktio-input",
         placeholder: "Napisz wiadomość…",
         type: "text"
       });
-
-      input.style.background = cfg.theme.inputBg;
-      input.style.color = cfg.theme.inputText;
-
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          sendMessage(input.value);
-        }
-      });
+      input.style.background = theme.inputBg || "#ffffff";
+      input.style.color = theme.inputText || "#111827";
 
       const sendBtn = el("button", { class: "kontaktio-send", type: "button" }, ["Wyślij"]);
-      sendBtn.style.background = cfg.theme.buttonBg;
-      sendBtn.style.color = cfg.theme.buttonText;
-      sendBtn.addEventListener("click", () => sendMessage(input.value));
+      sendBtn.style.background = theme.buttonBg || "#2563eb";
+      sendBtn.style.color = theme.buttonText || "#ffffff";
 
       const inputWrap = el("div", { class: "kontaktio-inputwrap" }, [input, sendBtn]);
-      inputWrap.style.background = cfg.theme.widgetBg;
+      inputWrap.style.background = theme.widgetBg || "#ffffff";
 
       widget.appendChild(header);
       widget.appendChild(muted);
@@ -549,32 +354,45 @@
       root.appendChild(widget);
       root.appendChild(launcher);
 
+      launcher.addEventListener("click", () => {
+        isOpen = true;
+        saveOpenState(true);
+        widget.style.display = "flex";
+        input.focus();
+      });
+
       // Restore history
       const history = loadHistory();
       history.forEach((m) => {
         if (!m || !m.role) return;
-        pushMessage(m.role === "user" ? "user" : "bot", m.text || "");
+        const row = el("div", { class: `kontaktio-row ${m.role}` }, [
+          el("div", { class: "kontaktio-bubble" }, [m.text || ""])
+        ]);
+        messages.appendChild(row);
       });
 
       // Welcome / status
       if (cfg.status !== "active") {
-        const msg =
-          cfg.statusMessage ||
-          "Asystent jest obecnie niedostępny. Skontaktuj się z firmą bezpośrednio.";
-        if (!history.length) pushMessage("bot", msg);
-        setMuted("Asystent jest wyłączony.");
-      } else if (!history.length) {
-        if (cfg.welcome_message) pushMessage("bot", cfg.welcome_message);
+        if (!history.length) {
+          messages.appendChild(
+            el("div", { class: "kontaktio-row bot" }, [
+              el("div", { class: "kontaktio-bubble" }, [
+                cfg.statusMessage || "Asystent jest obecnie niedostępny."
+              ])
+            ])
+          );
+        }
+        muted.textContent = "Asystent jest wyłączony.";
+        muted.style.display = "block";
+      } else if (!history.length && cfg.welcome_message) {
+        messages.appendChild(
+          el("div", { class: "kontaktio-row bot" }, [
+            el("div", { class: "kontaktio-bubble" }, [cfg.welcome_message])
+          ])
+        );
       }
 
-      // Quick replies
-      renderQuickReplies();
-
-      // Open state restore
-      isOpen = loadOpenState();
-      if (isOpen) openWidget();
-
-      // Auto open (tylko raz na klienta per przeglądarka)
+      // Auto open
       if (
         cfg.status === "active" &&
         cfg.auto_open_enabled &&
@@ -583,7 +401,9 @@
       ) {
         setTimeout(() => {
           markAutoOpened();
-          openWidget();
+          isOpen = true;
+          saveOpenState(true);
+          widget.style.display = "flex";
         }, Math.max(0, cfg.auto_open_delay || 0));
       }
     };
@@ -591,4 +411,3 @@
     mount();
   });
 })();
-
